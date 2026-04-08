@@ -1,0 +1,5 @@
+{
+  "name": "Biocode Coching365",
+  "description": "A coaching app for setting daily stretching goals, tracking progress, and syncing with Google Sheets.",
+  "requestFramePermissions": ["notifications"]
+}

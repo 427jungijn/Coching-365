@@ -1,0 +1,114 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "427jungjin@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidNumber(val, min, max) {
+      return val is number && val >= min && val <= max;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'role', 'name', 'createdAt']) &&
+             isValidString(data.uid, 1, 128) &&
+             isValidString(data.email, 3, 256) &&
+             data.role in ['admin', 'client'] &&
+             isValidString(data.name, 1, 100) &&
+             data.createdAt is string;
+    }
+
+    function isValidAssignment(data) {
+      return hasOnlyAllowedFields(['userId', 'topic', 'targetCount', 'targetDurationMinutes', 'reminderTime', 'createdAt', 'createdBy']) &&
+             isValidString(data.userId, 1, 128) &&
+             isValidString(data.topic, 1, 200) &&
+             isValidNumber(data.targetCount, 1, 1000) &&
+             isValidNumber(data.targetDurationMinutes, 1, 1440) &&
+             isValidString(data.reminderTime, 4, 5) &&
+             data.createdAt is string &&
+             isValidString(data.createdBy, 1, 128);
+    }
+
+    function isValidLog(data) {
+      return hasOnlyAllowedFields(['userId', 'assignmentId', 'completedAt', 'dateString', 'durationMinutes', 'count']) &&
+             isValidString(data.userId, 1, 128) &&
+             isValidString(data.assignmentId, 1, 128) &&
+             data.completedAt is string &&
+             isValidString(data.dateString, 10, 10) &&
+             isValidNumber(data.durationMinutes, 0, 1440) &&
+             isValidNumber(data.count, 0, 1000);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all profiles
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile, but only as 'client' unless they are the bootstrap admin
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'client' || isAdmin());
+                    
+      // Only admins can update roles, users can update their own name
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role && request.resource.data.uid == resource.data.uid) || 
+                    (isAdmin() && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid);
+    }
+
+    match /assignments/{assignmentId} {
+      // Clients can read their own assignments, admins can read all
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      
+      // Only admins can create/update/delete assignments
+      allow create: if isAdmin() && isValidAssignment(request.resource.data) && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAdmin() && isValidAssignment(request.resource.data) && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      // Clients can read their own logs, admins can read all
+      allow read: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+      
+      // Clients can create logs for themselves
+      allow create: if isOwner(request.resource.data.userId) && isValidLog(request.resource.data);
+      
+      // Logs shouldn't be updated or deleted typically, but we'll allow admins to delete if needed
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      // Only admins can read/write settings
+      allow read, write: if isAdmin();
+    }
+  }
+}

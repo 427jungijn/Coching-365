@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application (admin or client).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's Firebase Auth UID." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "role": { "type": "string", "enum": ["admin", "client"], "description": "The user's role." },
+        "name": { "type": "string", "description": "The user's display name." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created." }
+      },
+      "required": ["uid", "email", "role", "name", "createdAt"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "A stretching assignment given to a client by an admin.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the client." },
+        "topic": { "type": "string", "description": "The name of the stretching exercise." },
+        "targetCount": { "type": "number", "description": "Number of times to perform the stretch." },
+        "targetDurationMinutes": { "type": "number", "description": "Duration in minutes." },
+        "reminderTime": { "type": "string", "description": "Time of day to remind the user (HH:mm)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the assignment was created." },
+        "createdBy": { "type": "string", "description": "The UID of the admin who created it." }
+      },
+      "required": ["userId", "topic", "targetCount", "targetDurationMinutes", "reminderTime", "createdAt", "createdBy"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "A record of a completed stretching session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the client." },
+        "assignmentId": { "type": "string", "description": "The ID of the assignment completed." },
+        "completedAt": { "type": "string", "format": "date-time", "description": "When the stretch was completed." },
+        "dateString": { "type": "string", "description": "YYYY-MM-DD string for easy querying." },
+        "durationMinutes": { "type": "number", "description": "Duration completed." },
+        "count": { "type": "number", "description": "Count completed." }
+      },
+      "required": ["userId", "assignmentId", "completedAt", "dateString", "durationMinutes", "count"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global app settings.",
+      "type": "object",
+      "properties": {
+        "googleSheetsWebhookUrl": { "type": "string", "description": "Webhook URL to send log data to Google Sheets." }
+      },
+      "required": ["googleSheetsWebhookUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/assignments/{assignmentId}": {
+      "schema": { "$ref": "#/entities/Assignment" },
+      "description": "Stores stretching assignments."
+    },
+    "/logs/{logId}": {
+      "schema": { "$ref": "#/entities/Log" },
+      "description": "Stores completion logs."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Settings" },
+      "description": "Stores global settings (e.g., settingId = 'global')."
+    }
+  }
+}
