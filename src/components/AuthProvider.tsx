@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
 interface UserProfile {
@@ -31,9 +31,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(firebaseUser);
       if (firebaseUser) {
         const docRef = doc(db, 'users', firebaseUser.uid);
-        const unsubscribeDoc = onSnapshot(docRef, (docSnap) => {
+        const unsubscribeDoc = onSnapshot(docRef, async (docSnap) => {
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
+            const data = docSnap.data() as UserProfile;
+            
+            // Auto-upgrade bootstrap admin if they somehow got stuck with 'client' role
+            if (firebaseUser.email?.toLowerCase() === '427jungjin@gmail.com' && data.role !== 'admin') {
+              try {
+                await setDoc(docRef, { role: 'admin' }, { merge: true });
+                data.role = 'admin'; // Update local state immediately
+              } catch (e) {
+                console.error("Failed to auto-upgrade admin role", e);
+              }
+            }
+            
+            setProfile(data);
           } else {
             setProfile(null);
           }
