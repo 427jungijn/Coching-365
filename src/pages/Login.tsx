@@ -53,6 +53,11 @@ export default function Login() {
           name: result.user.displayName || 'New User',
           createdAt: new Date().toISOString()
         });
+      } else {
+        // If user exists but is bootstrap admin and somehow has client role, fix it
+        if (isBootstrapAdmin && userSnap.data().role !== 'admin') {
+          await setDoc(userRef, { role: 'admin' }, { merge: true });
+        }
       }
     } catch (err: any) {
       console.error("Login failed", err);
