@@ -71,13 +71,18 @@ service cloud.firestore {
     // Rules
     // ===============================================================
 
+    match /allowed_emails/{emailId} {
+      allow read: if isAuthenticated() && request.auth.token.email == emailId;
+      allow read, write: if isAdmin();
+    }
+
     match /users/{userId} {
       // Users can read their own profile, admins can read all profiles
       allow read: if isOwner(userId) || isAdmin();
       
-      // Users can create their own profile, but only as 'client' unless they are the bootstrap admin
+      // Users can create their own profile if they are bootstrap admin or in allowed_emails
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
-                    (request.resource.data.role == 'client' || isAdmin());
+                    (isAdmin() || exists(/databases/$(database)/documents/allowed_emails/$(request.auth.token.email)));
                     
       // Only admins can update roles, users can update their own name
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role && request.resource.data.uid == resource.data.uid) || 

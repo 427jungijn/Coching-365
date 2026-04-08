@@ -1,54 +1,61 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { signInWithPopup, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../firebase';
 import { useAuth } from '../components/AuthProvider';
 import { Navigate } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 
 export default function Login() {
   const { user, profile, loading } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setError('');
-
-    if (!isLogin && password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
     setAuthLoading(true);
-
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithPopup(auth, googleProvider);
+      const email = result.user.email?.toLowerCase();
+      
+      if (!email) throw new Error("No email found");
+
+      // Check if bootstrap admin
+      const isBootstrapAdmin = email === '427jungjin@gmail.com';
+      
+      let role = 'client';
+      
+      if (isBootstrapAdmin) {
+        role = 'admin';
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const role = email.toLowerCase() === '427jungjin@gmail.com' ? 'admin' : 'client';
-        
-        await setDoc(doc(db, 'users', userCredential.user.uid), {
-          uid: userCredential.user.uid,
+        // Check whitelist
+        const allowedDoc = await getDoc(doc(db, 'allowed_emails', email));
+        if (!allowedDoc.exists()) {
+          await signOut(auth);
+          setError('관리자의 승인이 필요합니다. 관리자에게 이메일 등록을 요청하세요.');
+          setAuthLoading(false);
+          return;
+        }
+        role = allowedDoc.data().role || 'client';
+      }
+
+      // Check if user profile exists, if not create it
+      const userRef = doc(db, 'users', result.user.uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          uid: result.user.uid,
           email: email,
           role: role,
-          name: name,
+          name: result.user.displayName || 'New User',
           createdAt: new Date().toISOString()
         });
       }
     } catch (err: any) {
-      console.error("Auth error", err);
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Firebase 콘솔에서 이메일/비밀번호 로그인이 아직 활성화되지 않았습니다. 설정 후 저장(Save) 버튼을 꼭 눌러주세요.');
-      } else {
-        setError(err.message || 'Authentication failed');
-      }
+      console.error("Login failed", err);
+      setError(err.message || '로그인에 실패했습니다.');
+      await signOut(auth);
     } finally {
       setAuthLoading(false);
     }
@@ -76,107 +83,25 @@ export default function Login() {
           Biocode Coaching365
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          {isLogin ? 'Sign in to your account' : 'Create a new account'}
+          Sign in to track your daily stretching goals
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email address</label>
-              <div className="mt-1">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
+          <button
+            onClick={handleGoogleLogin}
+            disabled={authLoading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {authLoading ? 'Processing...' : 'Sign in with Google'}
+          </button>
+          
+          {error && (
+            <div className="mt-4 p-3 rounded-md bg-red-50 text-red-700 text-sm text-center">
+              {error}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <div className="mt-1">
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
-            </div>
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
-                <div className="mt-1">
-                  <input
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="text-red-600 text-sm">{error}</div>
-            )}
-
-            <div>
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {authLoading ? 'Processing...' : (isLogin ? 'Sign in' : 'Sign up')}
-              </button>
-            </div>
-          </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  {isLogin ? 'New to Biocode?' : 'Already have an account?'}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                  setConfirmPassword('');
-                }}
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                {isLogin ? 'Create an account' : 'Sign in instead'}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
