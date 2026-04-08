@@ -44,7 +44,11 @@ export default function Login() {
       }
     } catch (err: any) {
       console.error("Auth error", err);
-      setError(err.message || 'Authentication failed');
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Firebase 콘솔에서 이메일/비밀번호 로그인이 아직 활성화되지 않았습니다. 설정 후 저장(Save) 버튼을 꼭 눌러주세요.');
+      } else {
+        setError(err.message || 'Authentication failed');
+      }
     } finally {
       setAuthLoading(false);
     }
