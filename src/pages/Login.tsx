@@ -9,10 +9,12 @@ import { Activity } from 'lucide-react';
 export default function Login() {
   const { user, profile, loading } = useAuth();
   const [error, setError] = useState('');
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
     setError('');
+    setUnauthorizedDomain('');
     setAuthLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -54,7 +56,11 @@ export default function Login() {
       }
     } catch (err: any) {
       console.error("Login failed", err);
-      setError(err.message || '로그인에 실패했습니다.');
+      if (err.code === 'auth/unauthorized-domain') {
+        setUnauthorizedDomain(window.location.hostname);
+      } else {
+        setError(err.message || '로그인에 실패했습니다.');
+      }
       await signOut(auth);
     } finally {
       setAuthLoading(false);
@@ -97,6 +103,26 @@ export default function Login() {
             {authLoading ? 'Processing...' : 'Sign in with Google'}
           </button>
           
+          {unauthorizedDomain && (
+            <div className="mt-4 p-4 rounded-md bg-red-50 border border-red-200">
+              <h3 className="text-red-800 font-bold mb-2 text-center">도메인 등록이 필요합니다!</h3>
+              <p className="text-sm text-red-700 mb-3 text-center">
+                현재 접속하신 주소가 Firebase에 등록되지 않았습니다. 아래 주소를 복사해서 Firebase 콘솔의 <b>[승인된 도메인]</b>에 추가해주세요.
+              </p>
+              <div className="bg-white p-3 rounded border border-red-300 font-mono text-sm text-center mb-3 select-all cursor-text">
+                {unauthorizedDomain}
+              </div>
+              <a
+                href="https://console.firebase.google.com/project/gen-lang-client-0482266539/authentication/settings"
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:text-blue-800 hover:underline text-sm block text-center font-medium"
+              >
+                👉 Firebase 설정으로 이동하기
+              </a>
+            </div>
+          )}
+
           {error && (
             <div className="mt-4 p-3 rounded-md bg-red-50 text-red-700 text-sm text-center">
               {error}
