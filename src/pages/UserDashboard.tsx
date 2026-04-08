@@ -12,7 +12,9 @@ export default function UserDashboard() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+  const [notificationPermission, setNotificationPermission] = useState(
+    'Notification' in window ? Notification.permission : 'denied'
+  );
 
   useEffect(() => {
     if (user) {
@@ -29,10 +31,12 @@ export default function UserDashboard() {
         
         assignments.forEach(assignment => {
           if (assignment.reminderTime === currentTime) {
-            new Notification('Time to Stretch!', {
-              body: `It's time for your ${assignment.topic} stretch!`,
-              icon: '/vite.svg'
-            });
+            if ('Notification' in window) {
+              new Notification('Time to Stretch!', {
+                body: `It's time for your ${assignment.topic} stretch!`,
+                icon: '/vite.svg'
+              });
+            }
           }
         });
       }
@@ -42,8 +46,12 @@ export default function UserDashboard() {
   }, [assignments, notificationPermission]);
 
   const requestNotificationPermission = async () => {
-    const permission = await Notification.requestPermission();
-    setNotificationPermission(permission);
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+    } else {
+      alert('Your browser does not support notifications.');
+    }
   };
 
   const fetchData = async () => {
@@ -148,13 +156,13 @@ export default function UserDashboard() {
               <h1 className="text-xl font-bold text-gray-900">Biocode Coaching365</h1>
             </div>
             <div className="flex items-center space-x-4">
-              {notificationPermission !== 'granted' && (
+              {'Notification' in window && notificationPermission !== 'granted' && (
                 <button onClick={requestNotificationPermission} className="text-yellow-600 hover:text-yellow-700 flex items-center text-sm">
                   <Bell className="h-4 w-4 mr-1" />
                   Enable Notifications
                 </button>
               )}
-              <button onClick={() => signOut(auth)} className="text-gray-500 hover:text-gray-700 flex items-center text-sm">
+              <button onClick={() => signOut(auth)} className="text-gray-500 hover:text-yellow-700 flex items-center text-sm">
                 <LogOut className="h-4 w-4 mr-1" />
                 Sign Out
               </button>
